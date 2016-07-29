@@ -9,8 +9,10 @@
 #ifndef _FSM_BASE_H_INCLUDED_
 #define _FSM_BASE_H_INCLUDED_
 
-
 #include "_types.h"
+#include <iostream>
+
+using namespace std;
 
 /////////////////////////////////////////////////////////////////////
 // constants

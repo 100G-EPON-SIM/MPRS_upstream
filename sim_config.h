@@ -11,6 +11,7 @@
 #ifndef _SIMULATION_H_INCLUDED_ 
 #define _SIMULATION_H_INCLUDED_ 
 
+#include <time.h>
 
 ///////////////////////////////////////////////////////////
 //  Output options
