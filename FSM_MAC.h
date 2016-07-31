@@ -88,6 +88,9 @@ public:
                     /////////////////////////////////////////////////
                     data_columns = 0;
                     transmitting = false;
+
+					// @TODO@ - MAC needs to distinguish T1_BLOCK, T2_BLOCK, and T3_BLOCK sequences 
+					// to make sure that RS can proeprly encode them into 25GMII
                     return _36b_t( timestamp, T_BLOCK, ++tx_sequence );
                 }
                 

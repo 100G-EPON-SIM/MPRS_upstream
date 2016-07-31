@@ -19,3 +19,4 @@ Debug/vc140.idb
 x64/Debug/MPRS_upstream.log
 *.idb
 targetver.h
+*.log

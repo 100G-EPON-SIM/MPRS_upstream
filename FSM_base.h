@@ -45,6 +45,8 @@ const int16s FEC_DSIZE			= 27;
 const int16s FEC_PSIZE			=  4;
 const int16s FEC_PAYLOAD_BYTES  = FEC_DSIZE * VECTOR_BYTES;
 const int16s FEC_PARITY_BYTES   = FEC_PSIZE * VECTOR_BYTES;
+const int16u PAYLOAD_SIZE		= FEC_DSIZE * 2;
+const int16u PARITY_SIZE		= FEC_PSIZE * 2;
 const int16s FEC_CODEWORD_BYTES = FEC_PAYLOAD_BYTES + FEC_PARITY_BYTES;
 
 const int16s TQ_SIZE_BYTES      = 20;
@@ -81,8 +83,13 @@ enum blk_t
     S_BLOCK = 0x0002, // 'S' - start of frame
     D_BLOCK = 0x0004, // 'D' - data block
     T_BLOCK = 0x0008, // 'T' - terminating character
-    E_BLOCK = 0x0010, // 'E' - errored block
+	// @TODO@ - MAC needs to distinguish T1, T2, T3 sequences to make sure that RS can proeprly encode them into 25GMII
+	T1_BLOCK = 0x0009, // 'T' - terminating character, 1 IDLE
+	T2_BLOCK = 0x000A, // 'T' - terminating character, 2 IDLEs
+	T3_BLOCK = 0x000B, // 'T' - terminating character, 3 IDLEs
+    E_BLOCK = 0x001F, // 'E' - errored block
     P_BLOCK = 0x0020, // 'P' - parity block
+	PP_BLOCK = 0x0021, // 'PP' - parity placeholder block, added in 802.3ca
    
     Z_BLOCK = 0x0040, // 'Z' - zero block (end of burst delineation)
     L_BLOCK = 0x0080, // 'L' - burst deLimiter
@@ -138,6 +145,7 @@ const int16s DLY_IDLE_INS	    = 11;
 const int16s DLY_XGMII_RX		= 12;
 const int16s DLY_MAC_RX		    = 13;	
 const int16s DLY_MPCP_RX		= 14;	
+const int16s DLY_NGEPON_RS_TX	= 30;
 
 const int32s DELAY_ARRAY_SIZE   = 15;
 
@@ -188,6 +196,8 @@ class _36b_t: public timestamp_t
     private:
         blk_t  _block_type;
         int32s _seq_number;
+		int16u _LLID;
+		int8u _EntryWriteIndex;
 
     public:
         _36b_t( blk_t blk = C_BLOCK ): timestamp_t( 0 )
@@ -195,6 +205,14 @@ class _36b_t: public timestamp_t
             _block_type = blk;
             _seq_number = -1;
         }
+
+		_36b_t(int16u LLID, int8u EntryWriteIndex) : timestamp_t(0)
+		{
+			_block_type = D_BLOCK;
+			_seq_number = -1;
+			_LLID = LLID;
+			_EntryWriteIndex = EntryWriteIndex;
+		}
         
         _36b_t( timestamp_t stamp, blk_t blk, int32s seq ): timestamp_t( stamp )
         {

@@ -1,7 +1,7 @@
 #include <time.h>
 #include <iostream> 
-#include "stdafx.h"
 
+#include "stdafx.h"
 #include "_util.h"
 #include "sim_config.h"
 

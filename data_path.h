@@ -8,6 +8,7 @@
 #include "FSM_DD.h"
 #include "FSM_FEC.h"
 #include "FSM_II.h"
+#include "FSM_NGEPON_RS.h"
 
 const int32s TEST_FRAMES = 10000;
 int64s frame_bytes = 0;
