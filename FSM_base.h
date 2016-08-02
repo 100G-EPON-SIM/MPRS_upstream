@@ -144,8 +144,14 @@ const int16s DLY_66B_DECODER	= 10;
 const int16s DLY_IDLE_INS	    = 11;	
 const int16s DLY_XGMII_RX		= 12;
 const int16s DLY_MAC_RX		    = 13;	
-const int16s DLY_MPCP_RX		= 14;	
-const int16s DLY_NGEPON_RS_TX	= 30;
+const int16s DLY_MPCP_RX		= 14;
+
+const int16s DLY_NGEPON_RS_TX		= 30;
+const int16s DLY_NGEPON_RS_RX		= 31;
+const int16s DLY_NGEPON_25GMII_TX	= 32;
+const int16s DLY_NGEPON_25GMII_RX	= 33;
+const int16s DLY_NGEPON_MAC_TX		= 34;
+const int16s DLY_NGEPON_MAC_RX		= 35;
 
 const int32s DELAY_ARRAY_SIZE   = 15;
 

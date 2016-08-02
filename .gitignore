@@ -20,3 +20,4 @@ x64/Debug/MPRS_upstream.log
 *.idb
 targetver.h
 *.log
+*.csv

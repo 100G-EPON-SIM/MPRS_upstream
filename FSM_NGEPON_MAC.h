@@ -1,13 +1,13 @@
 /**********************************************************
- * Filename:    FSM_MAC.h
+ * Filename:    FSM_NGEPON_MAC.h
  *
  * Description: 
  *
  *********************************************************/
 
 
-#ifndef _FSM_MAC_H_INCLUDED_
-#define _FSM_MAC_H_INCLUDED_
+#ifndef _FSM_NGEPON_MAC_H_INCLUDED_
+#define _FSM_NGEPON_MAC_H_INCLUDED_
 
 #include "FSM_base.h"
 
@@ -17,7 +17,7 @@
 /////////////////////////////////////////////////////////////////////
 // MAC TX state machine 
 /////////////////////////////////////////////////////////////////////
-class fsm_mac_tx_t: public fsm_base_t< DLY_MAC_TX, _frm_t, _36b_t >
+class fsm_ngepon_mac_tx_t: public fsm_base_t< DLY_NGEPON_MAC_TX, _frm_t, _36b_t >
 {
     private:
         timestamp_t timestamp;
@@ -139,7 +139,7 @@ public:
 
 
     public:
-        fsm_mac_tx_t()
+		fsm_ngepon_mac_tx_t()
         {
             timestamp     = 0;
             transmitting  = false;
@@ -162,7 +162,7 @@ public:
 /////////////////////////////////////////////////////////////////////
 // MAC RX state machine 
 /////////////////////////////////////////////////////////////////////
-class fsm_mac_rx_t: public fsm_base_t< DLY_MAC_RX, _36b_t, _frm_t >
+class fsm_ngepon_mac_rx_t: public fsm_base_t< DLY_NGEPON_MAC_RX, _36b_t, _frm_t >
 {
     private:
         clk_t   timestamp;
@@ -210,7 +210,7 @@ class fsm_mac_rx_t: public fsm_base_t< DLY_MAC_RX, _36b_t, _frm_t >
         }
 
     public:
-        fsm_mac_rx_t()
+		fsm_ngepon_mac_rx_t()
         {
             timestamp     = 0;
 			receiving     = false;
@@ -218,4 +218,4 @@ class fsm_mac_rx_t: public fsm_base_t< DLY_MAC_RX, _36b_t, _frm_t >
         }
 };
 
-#endif //_FSM_MAC_H_INCLUDED_
+#endif //_FSM_NGEPON_MAC_H_INCLUDED_
