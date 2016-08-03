@@ -21,3 +21,5 @@ x64/Debug/MPRS_upstream.log
 targetver.h
 *.log
 *.csv
+*.pdf
+*.enc

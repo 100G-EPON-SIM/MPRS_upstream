@@ -89,7 +89,8 @@ enum blk_t
 	T3_BLOCK = 0x000B, // 'T' - terminating character, 3 IDLEs
     E_BLOCK = 0x001F, // 'E' - errored block
     P_BLOCK = 0x0020, // 'P' - parity block
-	PP_BLOCK = 0x0021, // 'PP' - parity placeholder block, added in 802.3ca
+	X_BLOCK = 0x0021, // 'X' - parity placeholder block, added in 802.3ca
+	Y_BLOCK = 0x0022, // 'Y' - codeword delimiter block, added in 802.3ca
    
     Z_BLOCK = 0x0040, // 'Z' - zero block (end of burst delineation)
     L_BLOCK = 0x0080, // 'L' - burst deLimiter
@@ -117,11 +118,16 @@ char BlockName( blk_t bt )
         case S_BLOCK: return 'S';
         case D_BLOCK: return 'D';
         case T_BLOCK: return 'T';
+		case T1_BLOCK: return '1';
+		case T2_BLOCK: return '2';
+		case T3_BLOCK: return '3';
         case E_BLOCK: return 'E';
         case P_BLOCK: return 'P';
         case Z_BLOCK: return 'Z';
         case L_BLOCK: return 'L';
         case N_BLOCK: return 'N';
+		case X_BLOCK: return 'X';
+		case Y_BLOCK: return 'Y';
         default:	  return '-'; 
     }
 }
@@ -130,30 +136,26 @@ char BlockName( blk_t bt )
 // Array of timestamps
 /////////////////////////////////////////////////////////////////////
 
-const int16s DLY_MAC_CLIENT		= 0;
-const int16s DLY_MPCP_TX		= 1;	
-const int16s DLY_MAC_TX		    = 2;	
-const int16s DLY_XGMII_TX		= 3;
-const int16s DLY_IDLE_DEL	    = 4;	
-const int16s DLY_66B_ENCODER	= 5;	
-const int16s DLY_SCRAMBLER	    = 6;	
-const int16s DLY_DATA_DET	    = 7;	
-const int16s DLY_FEC_DECODER	= 8;	
-const int16s DLY_DESCRAMBLER	= 9;	
-const int16s DLY_66B_DECODER	= 10;	
-const int16s DLY_IDLE_INS	    = 11;	
-const int16s DLY_XGMII_RX		= 12;
-const int16s DLY_MAC_RX		    = 13;	
-const int16s DLY_MPCP_RX		= 14;
+const int16s DLY_NGEPON_MACC			= 0;
+const int16s DLY_NGEPON_MPCP_TX			= 1;
+const int16s DLY_NGEPON_MAC_TX		    = 2;
+const int16s DLY_NGEPON_RS_TX			= 3;
+const int16s DLY_NGEPON_25GMII_TX		= 4;
+const int16s DLY_NGEPON_25GMII_RX		= 5;
+const int16s DLY_NGEPON_RS_RX			= 6;
+const int16s DLY_NGEPON_MAC_RX		    = 7;	
+const int16s DLY_NGEPON_MPCP_RX			= 8;
 
-const int16s DLY_NGEPON_RS_TX		= 30;
-const int16s DLY_NGEPON_RS_RX		= 31;
-const int16s DLY_NGEPON_25GMII_TX	= 32;
-const int16s DLY_NGEPON_25GMII_RX	= 33;
-const int16s DLY_NGEPON_MAC_TX		= 34;
-const int16s DLY_NGEPON_MAC_RX		= 35;
+const int16s DLY_IDLE_DEL	    = 30;	
+const int16s DLY_66B_ENCODER	=31;	
+const int16s DLY_SCRAMBLER	    = 32;	
+const int16s DLY_DATA_DET	    = 33;	
+const int16s DLY_FEC_DECODER	= 34;	
+const int16s DLY_DESCRAMBLER	= 35;	
+const int16s DLY_66B_DECODER	= 36;	
+const int16s DLY_IDLE_INS	    = 37;	
 
-const int32s DELAY_ARRAY_SIZE   = 15;
+const int32s DELAY_ARRAY_SIZE   = 8;
 
 
 class timestamp_t
@@ -162,11 +164,16 @@ private:
     static clk_t    _global_clock;
     clk_t           _timestamp;
     int16s          _delay[ DELAY_ARRAY_SIZE ];
+	int16s			_frame_size;
 
 public:
     timestamp_t( clk_t stamp = 0 ) 
     {
-        _timestamp = stamp;
+        // initialize local variables
+		this->_timestamp = stamp;
+		// initialide delay array 
+		for (int16u iVar0 = 0; iVar0 < DELAY_ARRAY_SIZE; iVar0++)
+			_delay[iVar0] = 0;
     }
 
     /////////////////////////////////////////////////////////////
@@ -214,7 +221,7 @@ class _36b_t: public timestamp_t
 
 		_36b_t(int16u LLID, int8u EntryWriteIndex) : timestamp_t(0)
 		{
-			_block_type = D_BLOCK;
+			_block_type = X_BLOCK;
 			_seq_number = -1;
 			_LLID = LLID;
 			_EntryWriteIndex = EntryWriteIndex;
@@ -233,7 +240,8 @@ class _36b_t: public timestamp_t
         /////////////////////////////////////////////////////////////
         inline bool IsType( int32s blk_type_field ) const
         {
-            return (( C_TYPE() & blk_type_field ) != 0 );
+            // return (( C_TYPE() & blk_type_field ) != 0 );
+			return (_block_type == blk_type_field);
         }
         
         
@@ -367,7 +375,7 @@ class _frm_t: public timestamp_t
                 _frame_size = COLUMN_BYTES;
                 *(timestamp_t*)this = (timestamp_t)col;
             }
-            else if( col.IsType( D_BLOCK | T_BLOCK ))
+            else if( col.IsType(D_BLOCK) || col.IsType(T_BLOCK))
             {
                 _frame_size += COLUMN_BYTES;
             }
@@ -408,9 +416,9 @@ template< int16s L, class in_t, class out_t = in_t > class fsm_base_t
         /////////////////////////////////////////////////////////////
         inline operator out_t()	
         {
-            out_t out_blk = TransmitUnit();
-            out_blk.MeasureDelay( L );
-            return out_blk; 
+            out_t out_blk1 = TransmitUnit();
+			out_blk1.MeasureDelay(L);
+            return out_blk1; 
         }
         /////////////////////////////////////////////////////////////
         bool OutputReady( void ) const { return output_ready; }

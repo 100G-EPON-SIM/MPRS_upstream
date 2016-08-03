@@ -29,8 +29,33 @@ class fsm_ngepon_rs_tx_t: public fsm_base_t< DLY_NGEPON_RS_TX, _36b_t, _36b_t >
 		bool			InStateReceiveWord;						// this extra flag controls whether the input process SD stays in RECEIVE_WORD state (when true) or in INITIATE_CODEWORD_RX state (when false)
 		_36b_t			TX_DATA_CTRL[8][8][PAYLOAD_SIZE];		// Channel Bonding Tx Data & Control buffer (TX_DATA and TX_CTRL) concatenated into a single 36-bit wide vector construct, indexed [LinkIndex][0..7][0..PAYLOAD_SIZE]
 		int8u			TX_DATA_CTRL_ENTRY;						// pointer to concatenation of TX_DATA_ENTRY and TX_CTRL_ENTRY
+		int32u			BlockSequenceIn;
+		int32u			BlockCountIn;
 	
 	public:
+
+		/////////////////////////////////////////////////////////////
+		// This function accepts a CB_CTRL.request primitive from MPCP
+		// and sets internal variables accordingly
+		/////////////////////////////////////////////////////////////
+		void CbCtrlRequest(int8u paramLinkIndex, int32u paramCodeWordCount)
+		{
+			// state CHECK_FOR_HIDDEN_GRANT
+			if (paramCodeWordCount < this->CodeWordsLeft[paramLinkIndex])
+				return;
+
+			// state SET_BURST_LENGTH
+			this->CodeWordsLeft[paramLinkIndex] = paramCodeWordCount;
+		}
+
+		/////////////////////////////////////////////////////////////
+		// This function verifies whether RS Is ready to receive more
+		// data from MAC (backpressure on MAC)
+		/////////////////////////////////////////////////////////////
+		bool IsReadyForMoreData(int8u paramLinkIndex)
+		{
+			return (this->EntryWriteIndex[paramLinkIndex] - this->EntryReadIndex[paramLinkIndex] < 4);
+		}
 
         /////////////////////////////////////////////////////////////
 		// This function accepts a new vector from MAC for transmission
@@ -51,18 +76,44 @@ class fsm_ngepon_rs_tx_t: public fsm_base_t< DLY_NGEPON_RS_TX, _36b_t, _36b_t >
 			if (this->EntryWriteIndex[LinkIndex] - this->EntryReadIndex[LinkIndex] < 4 && this->InStateReceiveWord == false)
 			{
 				// state INITIATE_CODEWORD_RX
-				this->EntryWriteIndex[LinkIndex]++;
 				this->TX_DATA_CTRL[LinkIndex][this->EntryWriteIndex[LinkIndex]][0] = _36b_t(LinkIndex, this->EntryWriteIndex[LinkIndex]);
+				this->EntryWriteIndex[LinkIndex]++;
+				if (this->EntryWriteIndex[LinkIndex] == 8)
+					this->EntryWriteIndex[LinkIndex] = 0;
 				this->WordWriteIndex[LinkIndex] = 1;
 				this->InStateReceiveWord = true;
 			}
 
 			// state WAIT_FOR_WORD (empty)
 
+			// update local variables
+			this->BlockCountIn++;
+			if (frame.IsType(D_BLOCK) || frame.IsType(S_BLOCK) || frame.IsType(T_BLOCK))
+				this->BlockSequenceIn++;
+
+			#ifdef DEBUG_ENABLE_RS_TX_RX
+				std::cout << "RS_TX_RX: column type: " << BlockName(frame.C_TYPE()) << ", sequence [expected: " << this->BlockSequenceIn << ", received: " << frame.GetSeqNumber() << "], count: " << this->BlockCountIn;
+			#endif
+
 			// state RECEIVE_WORD
-			this->TX_DATA_CTRL[LinkIndex][this->EntryWriteIndex[LinkIndex]][this->WordWriteIndex[LinkIndex]] = frame;
-			this->WordWriteIndex[LinkIndex]++;
-			this->InStateReceiveWord = this->WordWriteIndex[LinkIndex] < PAYLOAD_SIZE;
+			if (this->InStateReceiveWord == true)
+			{
+				#ifdef DEBUG_ENABLE_RS_TX_RX
+					std::cout << ", saved OK @ [" << (int32u)LinkIndex << ":" << (int32u)this->EntryWriteIndex[LinkIndex] << ":" << (int32u)this->WordWriteIndex[LinkIndex] << "]";
+				#endif		
+
+				this->TX_DATA_CTRL[LinkIndex][this->EntryWriteIndex[LinkIndex]][this->WordWriteIndex[LinkIndex]] = frame;
+				this->WordWriteIndex[LinkIndex]++;
+				this->InStateReceiveWord = this->WordWriteIndex[LinkIndex] < PAYLOAD_SIZE;
+			}
+			else
+			{
+				this->WordWriteIndex[LinkIndex] = this->WordWriteIndex[LinkIndex];
+			}
+
+			#ifdef DEBUG_ENABLE_RS_TX_RX
+				std::cout << std::endl;
+			#endif
 
 		}
 
@@ -86,13 +137,18 @@ class fsm_ngepon_rs_tx_t: public fsm_base_t< DLY_NGEPON_RS_TX, _36b_t, _36b_t >
 				// state TRANSFER_IDLE
 				if (this->CodeWordsLeft[LinkIndex] == 0)
 				{
+					#ifdef DEBUG_ENABLE_RS_TX_TX
+						std::cout << "RS_TX_TX: column type: C (IDLE), CodeWordsLeft=" << (int16u)this->CodeWordsLeft[LinkIndex] << std::endl;
+					#endif // DEBUG_ENABLE_RS_TX_TX
 					return _36b_t(C_BLOCK);
 				}
 
 				// state SELECT_BUFFER_ENTRY
-				this->CodeWordsLeft[LinkIndex]--;
+ 				this->CodeWordsLeft[LinkIndex]--;
 				this->TX_DATA_CTRL_ENTRY = this->EntryReadIndex[LinkIndex];
 				this->EntryReadIndex[LinkIndex]++;
+				if (this->EntryReadIndex[LinkIndex] >= 8)
+					this->EntryReadIndex[LinkIndex] = 0;
 				this->WordReadIndex[LinkIndex] = 0;
 				this->InStateTransferPayloadWord = true; // push to next state 
 			}
@@ -110,6 +166,9 @@ class fsm_ngepon_rs_tx_t: public fsm_base_t< DLY_NGEPON_RS_TX, _36b_t, _36b_t >
 					// state PAYLOAD_COMPLETED
 					this->WordReadIndex[LinkIndex] = 0;
 				}
+				#ifdef DEBUG_ENABLE_RS_TX_TX
+					std::cout << "RS_TX_TX: column type: " << BlockName(TempTransferVector.C_TYPE()) << ", WordReadIndex=" << (int16u)this->WordReadIndex[LinkIndex] << ", TX_DATA_CTRL_ENTRY=" << (int16u)this->TX_DATA_CTRL_ENTRY << std::endl;
+				#endif // DEBUG_ENABLE_RS_TX_TX
 				return TempTransferVector;
 			}
 
@@ -123,7 +182,10 @@ class fsm_ngepon_rs_tx_t: public fsm_base_t< DLY_NGEPON_RS_TX, _36b_t, _36b_t >
 					this->InStateTransferParityPlaceholder = false;
 					this->InStateTransferPayloadWord = false;
 				}
-				return _36b_t(PP_BLOCK);
+				#ifdef DEBUG_ENABLE_RS_TX_TX
+					std::cout << "RS_TX_TX: column type: Y (parity placeholder), WordReadIndex=" << (int16u)this->WordReadIndex[LinkIndex] << std::endl;
+				#endif // DEBUG_ENABLE_RS_TX_TX
+				return _36b_t(Y_BLOCK);
 			}
 
 			return _36b_t(C_BLOCK);
@@ -151,8 +213,34 @@ class fsm_ngepon_rs_tx_t: public fsm_base_t< DLY_NGEPON_RS_TX, _36b_t, _36b_t >
 			this->InStateTransferParityPlaceholder = false;
 			this->InStateTransferPayloadWord = false;
 			this->InStateReceiveWord = false;
+
+			// initialize other variables
+			this->BlockSequenceIn = 0;
+			this->BlockCountIn = 0;
         }
 
+};
+
+/////////////////////////////////////////////////////////////////////
+// RS state machine, Receive Direction 
+/////////////////////////////////////////////////////////////////////
+class fsm_ngepon_rs_rx_t : public fsm_base_t< DLY_NGEPON_RS_RX, _36b_t, _36b_t >
+{
+	void ReceiveUnit(_36b_t frame)
+	{
+
+	}
+
+	_36b_t TransmitUnit(void)
+	{
+		return _36b_t();
+	}
+	
+	public:
+
+		fsm_ngepon_rs_rx_t()
+		{
+		}
 };
 
 #endif //_FSM_NGEPON_RS_H_INCLUDED_

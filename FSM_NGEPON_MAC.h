@@ -11,7 +11,7 @@
 
 #include "FSM_base.h"
 
-#define IDLE_COLUMN _36b_t( C_BLOCK )
+#define IDLE_COLUMN _36b_t (C_BLOCK)
 
 
 /////////////////////////////////////////////////////////////////////
@@ -20,7 +20,8 @@
 class fsm_ngepon_mac_tx_t: public fsm_base_t< DLY_NGEPON_MAC_TX, _frm_t, _36b_t >
 {
     private:
-        timestamp_t timestamp;
+        
+		timestamp_t timestamp;
         bool        transmitting;
 		int32s	    tx_sequence;
         int16s      frame_bytes;
@@ -28,46 +29,47 @@ class fsm_ngepon_mac_tx_t: public fsm_base_t< DLY_NGEPON_MAC_TX, _frm_t, _36b_t 
         int16s      idle_deficit;
         int16s      IPG_required;
 
-
-
-public:
-        //////////////////////////////////////////////////////////////////////////////
+	public:
+    
+		//////////////////////////////////////////////////////////////////////////////
 		//  
 		//////////////////////////////////////////////////////////////////////////////
-		inline int16s CalculateIPGBytes( int16s packet_size )
+		inline int16s CalculateIPGBytes (int16s packet_size)
 		{
-			int16s temp = MIN_IPG_BYTES + idle_deficit;
-			idle_deficit = (packet_size + idle_deficit) & 0x03;
-			return temp - idle_deficit;
+			int16s temp = MIN_IPG_BYTES + this->idle_deficit;
+			this->idle_deficit = (packet_size + this->idle_deficit) & 0x03;
+			return (temp - this->idle_deficit);
 		}
 
         /////////////////////////////////////////////////////////////
 		// This function accepts a new frame from MPCP 
         // for transmission. This function is called by MPCP
         /////////////////////////////////////////////////////////////
-        void ReceiveUnit( _frm_t frame )
+        void ReceiveUnit (_frm_t frame)
         {
-            if( !MacReady() )
+			// log error condition
+            if (this->MacReady() == false)
             {
-				MSG_WARN( "Frame passed to a busy MAC" );
+				MSG_WARN ("Frame passed to a busy MAC");
                 return;
             }
            
-            frame_bytes  = frame.GetFrameSize() + PREAMBLE_BYTES;
-            timestamp    = static_cast<timestamp_t>( frame );
+			// save the frame size and its timestamp
+            this->frame_bytes  = frame.GetFrameSize() + PREAMBLE_BYTES;
+            this->timestamp = static_cast<timestamp_t> (frame);
 		}
 
         /////////////////////////////////////////////////////////////
-        // Transmit 36-bit column 
+        // Transmit 36-bit column towards RS
         /////////////////////////////////////////////////////////////
-        _36b_t TransmitUnit( void )
+        _36b_t TransmitUnit (void)
         {
             /////////////////////////////////////////////////////////
             // If already transmitting a frame, continue...
             /////////////////////////////////////////////////////////
-            if( transmitting )
+            if (this->transmitting == true)
             {
-                if( data_columns == 1 ) // if this is the last data block...
+                if (this->data_columns == 1) // if this is the last data block...
                 {
                     /////////////////////////////////////////////////
                     // Find out how many idle columns should be trasmitted
@@ -79,56 +81,56 @@ public:
                     // columns to be sent. IPG_required can take values
                     // of 2 or 3 only. 
                     /////////////////////////////////////////////////
-                    IPG_required = CalculateIPGBytes( frame_bytes ) / COLUMN_BYTES;
-                    frame_bytes = 0;
+                    this->IPG_required = this->CalculateIPGBytes (this->frame_bytes) / COLUMN_BYTES;
+                    this->frame_bytes = 0;
 
                     /////////////////////////////////////////////////
                     // Transmit T block 
-                    // (this block may include up to 3 idles )
+                    // (this block may include up to 3 idles)
                     /////////////////////////////////////////////////
-                    data_columns = 0;
-                    transmitting = false;
+                    this->data_columns = 0;
+                    this->transmitting = false;
 
 					// @TODO@ - MAC needs to distinguish T1_BLOCK, T2_BLOCK, and T3_BLOCK sequences 
 					// to make sure that RS can proeprly encode them into 25GMII
-                    return _36b_t( timestamp, T_BLOCK, ++tx_sequence );
+                    return _36b_t (this->timestamp, T_BLOCK, ++this->tx_sequence);
                 }
                 
-                data_columns--;
-                return _36b_t( timestamp, D_BLOCK, ++tx_sequence );
+                this->data_columns--;
+                return _36b_t (this->timestamp, D_BLOCK, ++this->tx_sequence);
             }
 
             /////////////////////////////////////////////////////////
             // enforce minimum IPG 
             /////////////////////////////////////////////////////////
-            if( IPG_required > 0 )
+            if (this->IPG_required > 0)
             {   
 				///////////////////////////////////////////////////////////////////////////////////////
 				//if MAC is transmitting IPG and a new frame is available, then it should 
 				//latch the frame in transmit buffer
 				///////////////////////////////////////////////////////////////////////////////////////
 				
-                data_columns = (int16s)BLOCKS_ROUND_UP< COLUMN_BYTES >( frame_bytes );
-                IPG_required--;
+                this->data_columns = (int16s)BLOCKS_ROUND_UP< COLUMN_BYTES > (this->frame_bytes);
+				this->IPG_required--;
                 return IDLE_COLUMN;  
             }
 
             /////////////////////////////////////////////////////////
             // if data is latched for transmission, start sending the next frame
             /////////////////////////////////////////////////////////
-            if( data_columns > 0 )
+            if (this->data_columns > 0)
             {
-                transmitting = true;
-                data_columns--;
-                return _36b_t( timestamp, S_BLOCK, ++tx_sequence );
+				this->transmitting = true;
+				this->data_columns--;
+                return _36b_t (this->timestamp, S_BLOCK, ++this->tx_sequence);
             }
 
             /////////////////////////////////////////////////////////
             // if another frame arrived, latch it in transmit buffer
             /////////////////////////////////////////////////////////
-            if( frame_bytes > 0 )
+            if (this->frame_bytes > 0)
             {
-                data_columns = (int16s)BLOCKS_ROUND_UP< COLUMN_BYTES >( frame_bytes );
+				this->data_columns = (int16s)BLOCKS_ROUND_UP< COLUMN_BYTES > (this->frame_bytes);
             }
 
             /////////////////////////////////////////////////////////
@@ -137,16 +139,15 @@ public:
             return IDLE_COLUMN;  
         }
 
-
-    public:
 		fsm_ngepon_mac_tx_t()
         {
-            timestamp     = 0;
-            transmitting  = false;
-			tx_sequence   = 0;
-            data_columns  = 0;
-            idle_deficit  = 0;
-            IPG_required  = 0;
+			// initialize all variables 
+			this->timestamp     = 0;
+			this->transmitting  = false;
+			this->tx_sequence   = 0;
+			this->data_columns  = 0;
+			this->idle_deficit  = 0;
+			this->IPG_required  = 0;
         }
 
 		/////////////////////////////////////////////////////////////
@@ -154,8 +155,10 @@ public:
 		// Note that MAC may not be ready to start transmission due 
 		// to asserted CRS or IPG being enforced 
         /////////////////////////////////////////////////////////////
-		inline bool MacReady( void ) const { return frame_bytes <= 0; }
-
+		inline bool MacReady (void) const 
+		{ 
+			return this->frame_bytes <= 0;
+		}
 		
 };
 
@@ -165,56 +168,81 @@ public:
 class fsm_ngepon_mac_rx_t: public fsm_base_t< DLY_NGEPON_MAC_RX, _36b_t, _frm_t >
 {
     private:
-        clk_t   timestamp;
+        
+		clk_t   timestamp;
 		bool    receiving;
 		int32s	rx_sequence;
+		int32u  BlockCountIn;
+
+	public:
 
         /////////////////////////////////////////////////////////////
         // Receive 36-bit column 
         /////////////////////////////////////////////////////////////
-        void ReceiveUnit( _36b_t col )
+        void ReceiveUnit (_36b_t col)
         { 
-            if( col.IsType( E_BLOCK | P_BLOCK ))
+			// increase number of received blocks
+			this->BlockCountIn++;
+
+			// update block sequence only for specific block types
+			if (col.GetSeqNumber() != -1)
+				this->rx_sequence++;
+			
+			#ifdef DEBUG_ENABLE_MAC_RX
+				if (!(col.IsType(C_BLOCK) || col.IsType(Y_BLOCK) || col.IsType(X_BLOCK)))
+					std::cout << "MAC RX, column type: " << BlockName(col.C_TYPE()) << ", sequence [expected: " << this->rx_sequence << ", received: " << col.GetSeqNumber() << "], count: " << this->BlockCountIn << std::endl;
+			#endif // DEBUG_ENABLE_MAC_RX
+
+			if (col.IsType(E_BLOCK) || col.IsType(X_BLOCK) || col.IsType(Y_BLOCK) || col.IsType(P_BLOCK))
 				return;
 
-            if( col.IsType( C_BLOCK ))
+            if (col.IsType(C_BLOCK))
             {
-                if( receiving )
+                if (this->receiving == true)
                 {
-				    receiving = false;
-                    output_ready = true;
+					this->receiving = false;
+					this->output_ready = true;
                 }
 				return;
             }
 
-			if( ++ rx_sequence != col.GetSeqNumber() )
+			// log a warning message, column out of sequence was received
+			if (this->rx_sequence != col.GetSeqNumber())
 			{
-				MSG_WARN( BlockName(col.C_TYPE()) << "-column received out of sequence [expected: " << rx_sequence << ", received: " << col.GetSeqNumber() << "]" );
-				rx_sequence = col.GetSeqNumber();
+				MSG_WARN (BlockName(col.C_TYPE()) << "-column received out of sequence [expected: " << this->rx_sequence << ", received: " << col.GetSeqNumber() << "]");
+				// synchronize sequence numbers 
+				this->rx_sequence = col.GetSeqNumber();
 			}
 
-            if( output_ready )
-			    MSG_WARN( "Received MAC frame is being overwritten" );
+			// log a warning message, data is still in MAC
+			if (this->output_ready == true)
+			{
+				MSG_WARN("Received MAC frame is being overwritten");
+			}
 			
-			if( col.IsType( D_BLOCK | T_BLOCK ) && !receiving )
+			// log a warning message, unexpected column type was received
+			if ((col.IsType(D_BLOCK) || col.IsType(T_BLOCK)) && this->receiving == false)
             {
-                MSG_WARN( "Unexpected " << BlockName( col.C_TYPE() ) << " column" );
-            }
-            else if( col.IsType( S_BLOCK ) && receiving )
-            {
-			    MSG_WARN( "S column received in the middle of a MAC frame" );
+                MSG_WARN("Unexpected " << BlockName (col.C_TYPE()) << " column");
             }
 
-            receiving = true;
-            output_block.AddColumn( col );
+			// log a warning message, S column received in the middle of a MAC frame
+            else if (col.IsType(S_BLOCK) && this->receiving == true)
+            {
+			    MSG_WARN("S column received in the middle of a MAC frame");
+            }
+
+			this->receiving = true;
+			this->output_block.AddColumn (col);
         }
 
-    public:
 		fsm_ngepon_mac_rx_t()
         {
-            timestamp     = 0;
-			receiving     = false;
-			rx_sequence   = 0;
+			// initialize internal variables 
+            this->timestamp     = 0;
+			this->receiving     = false;
+			this->rx_sequence   = 0;
+			this->BlockCountIn	= 0;
         }
 };
 

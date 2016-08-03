@@ -14,40 +14,25 @@
 /////////////////////////////////////////////////////////////////////
 // MPCP TX state machine 
 /////////////////////////////////////////////////////////////////////
-class fsm_ngepon_mpcp_tx_t: public fsm_base_t< DLY_MPCP_TX, _frm_t >
+class fsm_ngepon_mpcp_tx_t: public fsm_base_t< DLY_NGEPON_MPCP_TX, _frm_t >
 {
     private:
-        clk_t   initiate_timer;    // Timer to keep track when channel
-								   // will be ready for next transfer .
+        clk_t   initiate_timer;    // Timer to keep track when channel will be ready for next transfer .
         bool	frameAvailable;	   // Indicator of a waiting frame to transfer.
         int16s  byte_time;         
-
-        /////////////////////////////////////////////////////////////
-        // FEC_Overhead() calculates the FEC overhead and returns the
-		// sum of length and overhead i.e. the total time after which
-		// channel will be rady again for another transfer
-        /////////////////////////////////////////////////////////////
-        clk_t FEC_Overhead( int16s length )
-        {
-            //////////////////////////////////////////////////////////
-			// length is rounded up to column boundary to account for
-			// increased IPG as discussed in section xxx.xx
-            //////////////////////////////////////////////////////////
-            length = (int16s)(COLUMN_BYTES * BLOCKS_ROUND_UP<COLUMN_BYTES>( length ));
-            return length + FEC_PARITY_BYTES * ((byte_time + length ) / FEC_PAYLOAD_BYTES );
-        }
 
         /////////////////////////////////////////////////////////////
         //  ReceiveUnit() receieves a frame from MAC Client only when 
 		//  Channel is ready and a frame is available at MAC Client
         /////////////////////////////////////////////////////////////
-        void ReceiveUnit( _frm_t frame ) 
+        void ReceiveUnit (_frm_t frame) 
         {
-			if( !ChannelReady() )
-                MSG_WARN( "MPCP has not finished sending previous frame" );
+			// log a warning message, MPCP has not finished sending previous frame
+			if (this->ChannelReady() == false)
+                MSG_WARN ("MPCP has not finished sending previous frame");
 			
-            output_block   = frame; 
-            frameAvailable = true;
+            this->output_block   = frame; 
+            this->frameAvailable = true;
         }
 
         ////////////////////////////////////////////////////////////////////
@@ -59,34 +44,31 @@ class fsm_ngepon_mpcp_tx_t: public fsm_base_t< DLY_MPCP_TX, _frm_t >
 		// parity code, otherwise this frame can be delayed by upto 32
 		// bytes time).  
         ///////////////////////////////////////////////////////////////////
-        _frm_t TransmitUnit( void )
+        _frm_t TransmitUnit (void)
         {
-            if( !OutputReady() )
-                MSG_WARN( "MPCP Frame is not ready" );
+			// log a warning message, MPCP output frame is not ready 
+            if (this->OutputReady() == false)
+                MSG_WARN ("MPCP Frame is not ready");
 
             //////////////////////////////////////////////////////////////
             // if this is the beginning of a burst, account for 2 idle
 			// blocks at the beginning of FEC-protected portion of a burst
             //////////////////////////////////////////////////////////////
-            if( grantStart ) 
+            if (this->grantStart == true) 
             {		
-               byte_time = 16;  
-               grantStart = false;
+               this->byte_time = 16;  
+               this->grantStart = false;
             }					
           
-            frameAvailable = false;
+            this->frameAvailable = false;
 
             //////////////////////////////////////////////////////////
             // MAC_CLIENT returns frame size excluding IPG and 
 			// preamble but includes E_HEADER_BYTES and CHECKSUM_BYTES
-            //////////////////////////////////////////////////////////
-            int16s data_tx = output_block.GetFrameSize() - E_HEADER_BYTES - CHECKSUM_BYTES;
-
-            ////////////////////////////////////////////////
-            // TAIL_GAURD includes PREAMBLE, E_HEADER_BYTES,
+			// TAIL_GAURD includes PREAMBLE, E_HEADER_BYTES,
 			// CHECKSUM_BYTES and IPG
-            ////////////////////////////////////////////////
-            initiate_timer = FEC_Overhead( data_tx + TAIL_GUARD ); 
+            //////////////////////////////////////////////////////////
+			initiate_timer = output_block.GetFrameSize() - E_HEADER_BYTES - CHECKSUM_BYTES + TAIL_GUARD;
 
 			////////////////////////////////////////////////////
             // Transfer a frame to the MAC 
@@ -112,15 +94,15 @@ class fsm_ngepon_mpcp_tx_t: public fsm_base_t< DLY_MPCP_TX, _frm_t >
         ///////////////////////////////////////////////////////
         //  
         ///////////////////////////////////////////////////////
-        inline void IncrementByteClock( void ) 
+        inline void IncrementByteClock (void) 
         {
-            byte_time ++;
+            this->byte_time ++;
 
-            if( byte_time == FEC_CODEWORD_BYTES )
-                byte_time = 0;
+            if (this->byte_time == FEC_CODEWORD_BYTES)
+				this->byte_time = 0;
 
-            if( initiate_timer > 0 )
-                initiate_timer--;
+            if (this->initiate_timer > 0)
+				this->initiate_timer--;
         }
 
         /////////////////////////////////////////////////////////////
@@ -139,19 +121,20 @@ class fsm_ngepon_mpcp_tx_t: public fsm_base_t< DLY_MPCP_TX, _frm_t >
 		// condition (4) will become satisfied automatically when the
 		// byte_time is reset.
         /////////////////////////////////////////////////////////////
-        inline bool OutputReady( void ) 
+        inline bool OutputReady (void) 
         {
-            bool alignmentCorrect = ( byte_time & 0x0003 ) == 0  && ( byte_time < FEC_PAYLOAD_BYTES || grantStart );
-            return initiate_timer == 0 && frameAvailable && alignmentCorrect;
+            bool alignmentCorrect =  (byte_time & 0x0003) == 0  &&  (byte_time < FEC_PAYLOAD_BYTES || grantStart);
+            // return initiate_timer == 0 && frameAvailable && alignmentCorrect;
+			return initiate_timer == 0 && frameAvailable;
         }
 
 		/////////////////////////////////////////////////////////////
         // As soon as the initiate_timer goes to zero and no frame is 
-		// waiting for transfer( in MPCP ) to MAC, the channel becomes
+		// waiting for transfer (in MPCP) to MAC, the channel becomes
 		// ready and MAC Client can transfer a frame to MPCP (if there
-		// is a frame available at MAC Client ).
+		// is a frame available at MAC Client).
         /////////////////////////////////////////////////////////////
-        inline bool ChannelReady( void ) 
+        inline bool ChannelReady (void) 
         {
             return initiate_timer == 0 && !frameAvailable;
         }
@@ -160,11 +143,11 @@ class fsm_ngepon_mpcp_tx_t: public fsm_base_t< DLY_MPCP_TX, _frm_t >
 /////////////////////////////////////////////////////////////////////
 // MPCP RX state machine 
 /////////////////////////////////////////////////////////////////////
-class fsm_ngepon_mpcp_rx_t: public fsm_base_t< DLY_MPCP_RX, _frm_t >
+class fsm_ngepon_mpcp_rx_t: public fsm_base_t< DLY_NGEPON_MPCP_RX, _frm_t >
 {
     private:
         /////////////////////////////////////////////////////////////
-        void ReceiveUnit( _frm_t in_blk )
+        void ReceiveUnit (_frm_t in_blk)
         {
             output_block = in_blk;
             output_ready = true;

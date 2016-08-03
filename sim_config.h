@@ -16,7 +16,7 @@
 ///////////////////////////////////////////////////////////
 //  Output options
 ///////////////////////////////////////////////////////////
-#define STOP_ON_WARNING
+//#define STOP_ON_WARNING
 
 //#define WARNING_OUTPUT_FILE 
 #define WARNING_OUTPUT_SCREEN
@@ -37,11 +37,15 @@
 
 #define SHOW_HISTOGRAM
 
-#define CHECK_DOWNSTREAM
+//#define CHECK_DOWNSTREAM
 #define CHECK_UPSTREAM
 
-#define SPARSE_TRAFFIC
+//#define SPARSE_TRAFFIC
 
+//#define DEBUG_ENABLE_RS_TX_RX
+//#define DEBUG_ENABLE_RS_TX_TX
+//#define DEBUG_ENABLE_DATA_PATH_1
+//#define DEBUG_ENABLE_MAC_RX
 
 #define FOR_ALL( N, M )     for( int32s M = 0; M < N; M++ )
 
